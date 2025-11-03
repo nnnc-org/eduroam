@@ -109,7 +109,7 @@ function step_ca_init () {
     ## check if USER_DOMAIN is set
     if [ -n "${DOCKER_STEPCA_INIT_USER_DOMAIN}" ]; then
         echo "Limiting x509 certificate generation to email domain: ${DOCKER_STEPCA_INIT_USER_DOMAIN}"
-        step ca policy authority x509 allow email "@${DOCKER_STEPCA_INIT_USER_DOMAIN}""
+        step ca policy authority x509 allow email "@${DOCKER_STEPCA_INIT_USER_DOMAIN}"
     fi
 
     if [ "${DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT}" == "true" ]; then
