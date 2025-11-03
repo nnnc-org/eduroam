@@ -30,8 +30,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ./step-ca
-          file: Dockerfile
+          context: ./step-ca/
+          file: ./step-ca/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/stepca:${{ env.VERSION }}
