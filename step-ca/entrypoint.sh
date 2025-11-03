@@ -109,7 +109,14 @@ function step_ca_init () {
     ## check if USER_DOMAIN is set
     if [ -n "${DOCKER_STEPCA_INIT_USER_DOMAIN}" ]; then
         echo "Limiting x509 certificate generation to email domain: ${DOCKER_STEPCA_INIT_USER_DOMAIN}"
-        step ca policy authority x509 allow email "@${DOCKER_STEPCA_INIT_USER_DOMAIN}"
+        #step ca policy authority x509 allow email "@${DOCKER_STEPCA_INIT_USER_DOMAIN}"
+        tmpfile="$(mktemp)"
+        jq --arg domain "*@${DOCKER_STEPCA_INIT_USER_DOMAIN}" '
+          .authority.policy.x509.allow.email |=
+          (if . == null then [$domain]
+           else (. + [$domain] | unique)
+           end)
+        ' ${STEPPATH}/config/ca.json > "$tmpfile" && mv "$tmpfile" ${STEPPATH}/config/ca.json
     fi
 
     if [ "${DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT}" == "true" ]; then
