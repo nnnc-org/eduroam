@@ -111,7 +111,7 @@ function step_ca_init () {
         echo "Limiting x509 certificate generation to email domain: ${DOCKER_STEPCA_INIT_USER_DOMAIN}"
         #step ca policy authority x509 allow email "@${DOCKER_STEPCA_INIT_USER_DOMAIN}"
         tmpfile="$(mktemp)"
-        jq --arg domain "*@${DOCKER_STEPCA_INIT_USER_DOMAIN}" '
+        jq --arg domain "@${DOCKER_STEPCA_INIT_USER_DOMAIN}" '
           .authority.policy.x509.allow.email |=
           (if . == null then [$domain]
            else (. + [$domain] | unique)
