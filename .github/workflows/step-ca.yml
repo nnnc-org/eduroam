@@ -3,7 +3,7 @@ name: Build & Push step-ca image
 on:
   push:
     tags:
-      - "stepca-v*.*.*" # only trigger for tags like stepca-v1.2.3
+      - "stepca-v*.*_*" # only trigger for tags like stepca-v1.2_3
 
 jobs:
   build:
