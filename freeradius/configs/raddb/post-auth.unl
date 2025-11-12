@@ -1,0 +1,42 @@
+
+post-auth {
+
+    # if client-shortname has eduroam in the name, skip the vlan stuff
+    if (request:Client-Shortname !~ /eduroam/) {
+        update reply {
+            Tunnel-Type := VLAN
+            Tunnel-Medium-Type := IEEE-802
+
+            # set default vlan - := means alway override (this prevents you getting a vlan from a misconfigured server)
+            Tunnel-Private-Group-ID := "$ENV{GUEST_VLAN}"
+        }
+
+        # Only act on EAP-TLS authentications (school owned devices)
+        if (&control:Auth-Type == "EAP") {
+            if (&EAP-Type == EAP-TLS) {
+                # Default VLAN for EAP-TLS users (staff)
+                update reply {
+                    Tunnel-Private-Group-Id := "$ENV{STAFF_VLAN}"
+                }
+
+                # Check if the certificate subject contains "student"
+                if ("%{TLS-Client-Cert-Subject}" =~ /student/i) {
+                    update reply {
+                        Tunnel-Private-Group-Id := "$ENV{STUDENT_VLAN}"
+                    }
+                }
+            }
+        }
+    }
+
+    # Log the authentication attempt
+    remove_reply_message_if_eap
+    linelog
+
+    Post-Auth-Type REJECT {
+        attr_filter.access_reject
+        eap
+        remove_reply_message_if_eap
+        linelog
+    }
+}

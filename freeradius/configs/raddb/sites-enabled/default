@@ -1,0 +1,113 @@
+# -*- text -*-
+#########################################################################
+#
+#	The file contains the default server configuration. In this config,
+#   you will find a series of default settings optimized for most common
+#   use cases. You can use this file as a starting point for your own
+#   configuration.
+#
+#	$Id$
+#
+#########################################################################
+
+
+server default {
+
+listen {
+    type = auth
+    ipaddr = *
+    port = 0
+    limit {
+        max_connections = 16
+        lifetime = 0
+        idle_timeout = 30
+    }
+}
+listen {
+    ipaddr = *
+    port = 0
+    type = acct
+    limit {
+    }
+}
+listen {
+    type = auth
+    ipv6addr = ::	# any.  ::1 == localhost
+    port = 0
+    limit {
+        max_connections = 16
+        lifetime = 0
+        idle_timeout = 30
+    }
+}
+listen {
+    ipv6addr = ::
+    port = 0
+    type = acct
+    limit {
+    }
+}
+authorize {
+    if (!&session-state:) {
+        linelog
+    }
+    filter_username
+    preprocess
+    chap
+    mschap
+    digest
+    suffix
+    if( request:Realm == "NULL" ) {
+        update reply {
+            Reply-Message := "Username should be in format username@domain"
+        }
+        update session-state {
+            Module-Failure-Message := "Username should be in format username@domain"
+        }
+        reject
+    }
+    if ( request:Realm != "$ENV{DOMAIN}") {
+        update {
+            control:Load-Balance-Key := &Calling-Station-ID
+            control:Proxy-To-Realm := 'eduroam_flr'
+
+            # Operator name (RFC 5580) identifies the network the
+            # request originated from. It's not absolutely necessary
+            # but it helps with debugging.
+            request:Operator-Name := "1$ENV{DOMAIN}"
+        }
+        #return
+    }
+
+    eap {
+        ok = return
+    }
+    files
+    expiration
+    logintime
+    pap
+}
+authenticate {
+    eap
+}
+preacct {
+    preprocess
+    acct_unique
+    suffix
+    files
+}
+accounting {
+    log_accounting
+    unix
+}
+session {
+}
+$INCLUDE ../post-auth.unl
+
+
+pre-proxy {
+}
+post-proxy {
+    eap
+}
+}

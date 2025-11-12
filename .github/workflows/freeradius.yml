@@ -1,0 +1,38 @@
+name: Build & Push step-ca image
+
+on:
+  push:
+    tags:
+      - "freeradius-v*.*_*" # only trigger for tags like freeradius-v1.2_0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # needed to push to ghcr.io
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version
+        id: extract_version
+        run: echo "VERSION=${GITHUB_REF_NAME#freeradius-v}" >> $GITHUB_ENV
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./freeradius/
+          file: ./freeradius/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/radius:${{ env.VERSION }}
+            ghcr.io/${{ github.repository_owner }}/radius:latest

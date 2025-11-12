@@ -1,0 +1,18 @@
+mschap {
+
+        ntlm_auth = "/scripts/ntlm_auth --request-nt-key --allow-mschapv2 --username=%{%{User-Name}:-00} --challenge=%{%{mschap:Challenge}:-00} --nt-response=%{%{mschap:NT-Response}:-00} --token=$ENV{TOKEN}"
+
+        pool {
+                start = ${thread[pool].start_servers}
+                min = ${thread[pool].min_spare_servers}
+                max = ${thread[pool].max_servers}
+                spare = ${thread[pool].max_spare_servers}
+                uses = 0
+                retry_delay = 30
+                lifetime = 86400
+                cleanup_interval = 300
+                idle_timeout = 600
+        }
+        passchange {
+        }
+}

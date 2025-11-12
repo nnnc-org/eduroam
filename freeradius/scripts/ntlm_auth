@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# This simple script acts as a replacement for the samba ntlm_auth tool. Configuration is done via environment variables like so:
+#    SERVER="http://localhost:8081/authenticate" TOKEN="securetoken" ./ntlm_auth --request-nt-key --username=user --challenge=abcd1234 --nt-response=5678efgh
+
+# Configuration
+SERVER="${SERVER:-http://go-radntlm:8081/authenticate}"
+TOKEN="${TOKEN:-securetoken}"
+
+# Parse args (the same as passed to ntlm_auth)
+USERNAME=""
+CHALLENGE=""
+NT_RESPONSE=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --username=*)
+            USERNAME="${1#*=}"
+            shift
+            ;;
+        --challenge=*)
+            CHALLENGE="${1#*=}"
+            shift
+            ;;
+        --nt-response=*)
+            NT_RESPONSE="${1#*=}"
+            shift
+            ;;
+        # optional TOKEN override
+        --token=*)
+            TOKEN="${1#*=}"
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "$USERNAME" || -z "$CHALLENGE" || -z "$NT_RESPONSE" ]]; then
+    echo "Error: Missing required arguments (--username, --challenge, --nt-response)" >&2
+    exit 1
+fi
+
+curl --fail-with-body -sS -X POST "$SERVER" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "username=$USERNAME&challenge=$CHALLENGE&nt-response=$NT_RESPONSE" 2> /dev/null
