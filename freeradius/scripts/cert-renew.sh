@@ -53,15 +53,14 @@ generate_step_cert() {
     # Defaults
     local provisioner_name="${DOCKER_STEPCA_INIT_PROVISIONER_NAME:-admin}"
 
-    step ca certificate --offline \
-            --password-file "${STEPPATH}/secrets/password" \
-            --provisioner "${provisioner_name}" \
-            --provisioner-password-file "${STEPPATH}/secrets/password" \
-            --not-after=8760h \
-            --kty=RSA \
-            "$domain" \
-            "$output_dir/server.crt" \
-            "$output_dir/server.key"
+    step ca certificate --ca-url https://stepca:9000 --root /home/step/certs/root_ca.crt \
+                        --password-file "${STEPPATH}/password" \
+                        --provisioner "${provisioner_name}" \
+                        --provisioner-password-file "${STEPPATH}/secrets/password" \
+                        --not-after=8760h \
+                        "$domain" \
+                        "$output_dir/server.crt" \
+                        "$output_dir/server.key"
 
     if [ $? -ne 0 ]; then
         echo "Failed to generate certificate"
