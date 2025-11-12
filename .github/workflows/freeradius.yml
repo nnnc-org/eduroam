@@ -1,4 +1,4 @@
-name: Build & Push step-ca image
+name: Build & Push freeradius image
 
 on:
   push:
