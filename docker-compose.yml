@@ -1,0 +1,137 @@
+volumes:
+  ca-data:
+  fr-logs:
+  fr-certs:
+  letsencrypt:
+  ntlm-config:
+
+services:
+  freeradius:
+    image: ghcr.io/nnnc-org/radius:latest
+    container_name: freeradius
+    restart: unless-stopped
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    volumes:
+      - ca-data:/home/step
+      - fr-certs:/certs
+      - letsencrypt:/letsencrypt:ro
+      - fr-logs:/opt/var/log/radius
+    env_file:
+      - ./.env
+    environment:
+      DOMAIN: "$MAIL_DOMAIN"
+      SERVER: "http://go-radntlm:8081/authenticate"
+      DEBUG: 1
+
+  elastic-agent:
+    profiles:
+      - elastic
+    image: docker.elastic.co/elastic-agent/elastic-agent:9.2.4
+    container_name: elastic
+    restart: unless-stopped
+    environment:
+      - FLEET_URL=${FLEET_URL}
+      - FLEET_ENROLLMENT_TOKEN=${FLEET_ENROLLMENT_TOKEN}
+      - FLEET_ENROLL=1
+    volumes:
+      - fr-logs:/var/log/radius
+
+  traefik:
+    image: traefik:v3
+    container_name: traefik
+    restart: unless-stopped
+    dns:
+      - 1.1.1.1
+    ports:
+      - "80:80"
+      - "443:443"
+      - "127.0.0.1:8080:8080"
+    command:
+      - "--log.level=DEBUG" # Set log level to DEBUG
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # limit to containers with label "eduroam=true"
+      - "--providers.docker.constraints=Label(`eduroam`,`true`)"
+      # letsencrypt configuration (http challenge)
+      - "--certificatesresolvers.le.acme.email=$ADMIN_EMAIL"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+
+  go-radntlm:
+    image: ghcr.io/nnnc-org/go-radntlm:v0.0.2
+    container_name: go-radntlm
+    restart: unless-stopped
+    volumes:
+      - ntlm-config:/config
+      - ./metadata.xml:/metadata.xml
+    command:
+      - "server"
+      - "--database=/config/users.db"
+      - "--token=${TOKEN}"
+    environment:
+      DOMAIN: "https://eduroam.$MAIL_DOMAIN"
+      METADATA_URL: "${METADATA_URL:-}"
+      METADATA_FILE: "${METADATA_FILE:-}"
+      CERT_FILE: "/config/signing-cert.pem"
+      KEY_FILE: "/config/signing-key.pem"
+      ADMIN_AUTH: "${ADMIN_AUTH}"
+    labels:
+      - "eduroam=true"
+      - "traefik.enable=true"
+      # redirect http to https
+      - "traefik.http.routers.go-radntlm-http.rule=Host(`eduroam.$MAIL_DOMAIN`)"
+      - "traefik.http.routers.go-radntlm-http.entrypoints=web"
+      - "traefik.http.routers.go-radntlm-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      # https router
+      - "traefik.http.routers.go-radntlm.rule=Host(`eduroam.$MAIL_DOMAIN`)"
+      - "traefik.http.routers.go-radntlm.entrypoints=websecure"
+      - "traefik.http.routers.go-radntlm.tls=true"
+      - "traefik.http.routers.go-radntlm.tls.certresolver=le"
+      # service
+      - "traefik.http.services.go-radntlm.loadbalancer.server.scheme=http"
+      - "traefik.http.services.go-radntlm.loadbalancer.server.port=8080"
+
+  stepca:
+    image: ghcr.io/nnnc-org/stepca:latest
+    container_name: stepca
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      DOCKER_STEPCA_INIT_NAME: "$ORG_NAME"
+      DOCKER_STEPCA_INIT_DNS_NAMES: "localhost,127.0.0.1,stepca,$PUBLIC_IP,eduroam.$MAIL_DOMAIN"
+      DOCKER_STEPCA_INIT_PASSWORD: "$CA_PASSWD"
+      DOCKER_STEPCA_INIT_ADDRESS: ":9000"
+      DOCKER_STEPCA_INIT_ADMIN_SUBJECT: "step@$MAIL_DOMAIN"
+      DOCKER_STEPCA_INIT_REMOTE_MANAGEMENT: "false"
+      DOCKER_STEPCA_INIT_USER_DOMAIN: "$MAIL_DOMAIN" # email domain
+      DOCKER_STEPCA_INIT_SCEP: "true"
+      DOCKER_STEPCA_INIT_SCEP_NAME: "devices"
+      DOCKER_STEPCA_INIT_SCEP_CHALLENGE: "$SCEP_CHALLENGE"
+      DOCKER_STEPCA_INIT_INSECURE: "true"
+      STEP_LOGGER_LOG_REAL_IP: "true"
+      STEPDEBUG: "1" # optional
+    volumes:
+      - ca-data:/home/step
+    labels:
+      - "eduroam=true"
+      - "traefik.enable=true"
+      # Router
+      - "traefik.http.routers.stepca-scep.rule=Host(`eduroam.$MAIL_DOMAIN`) && PathPrefix(`/scep`)"
+      - "traefik.http.routers.stepca-scep.entrypoints=web"
+      - "traefik.http.services.stepca-scep.loadbalancer.server.scheme=http"
+      - "traefik.http.services.stepca-scep.loadbalancer.server.port=9001"
+
+      - "traefik.http.routers.stepca-scep1.rule=Host(`eduroam.$MAIL_DOMAIN`) && PathPrefix(`/scep`)"
+      - "traefik.http.routers.stepca-scep1.entrypoints=websecure"
+      - "traefik.http.routers.stepca-scep1.tls=true"
+      - "traefik.http.routers.stepca-scep1.tls.certresolver=le"
