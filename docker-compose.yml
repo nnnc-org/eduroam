@@ -24,6 +24,11 @@ services:
       DOMAIN: "$MAIL_DOMAIN"
       SERVER: "http://go-radntlm:8081/authenticate"
       DEBUG: 1
+    logging:
+      driver: json-file
+      options:
+        max-size: "1g"
+        max-file: "4"
 
   elastic-agent:
     profiles:
